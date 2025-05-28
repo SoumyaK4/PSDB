@@ -4,7 +4,7 @@ from sgfmill import sgf, boards
 
 DB_FILE = "pattern.db"
 SGF_DIR = "sgf"
-LOCAL_SIZE = 9
+LOCAL_SIZE = 9  # size of local search window (e.g., 9x9)
 
 def rotate90(pattern):
     size = LOCAL_SIZE
@@ -76,7 +76,8 @@ def process_all_sgfs():
     for filename in os.listdir(SGF_DIR):
         if not filename.endswith(".sgf"):
             continue
-        with open(os.path.join(SGF_DIR, filename), "rb") as f:
+        filepath = os.path.join(SGF_DIR, filename)
+        with open(filepath, "rb") as f:
             try:
                 sgf_game = sgf.Sgf_game.from_bytes(f.read())
                 board = boards.Board(19)
@@ -87,22 +88,28 @@ def process_all_sgfs():
                     move = node.get_move()
                     if move is None:
                         continue
-                    color, (x, y) = move
-                    if x is None or y is None:
+                    color, coords = move
+                    if coords is None:
                         continue
+                    x, y = coords
 
-                    # Before playing the move, capture the pattern
+                    # Capture pattern BEFORE playing the move
                     pattern = normalize_pattern(get_local_pattern(board, x, y))
 
+                    # Get the NEXT move for training
                     if i + 1 < len(main_sequence):
-                        next_move = main_sequence[i + 1].get_move()[1]
+                        next_move_node = main_sequence[i + 1]
+                        next_move = next_move_node.get_move()
                         if next_move:
-                            insert_pattern(conn, pattern, str(next_move))
+                            next_color, next_coords = next_move
+                            if next_coords:
+                                insert_pattern(conn, pattern, str(next_coords))
 
+                    # Now play the move
                     board.play(x, y, color)
 
             except Exception as e:
-                print(f"Error in {filename}: {e}")
+                print(f"Error processing {filename}: {e}")
     conn.close()
 
 if __name__ == "__main__":
